@@ -73,60 +73,59 @@ class Tree(object):
             # return average
             return y.mean()
 
-    def criterion_improve(self,y,y1,y2):
+    def criterion_improve(self,indexes,idx_1,idx_2):
         """
         calculate criterion improvement after split y data to y1,y2
-        y,y1,y2: np.array[N,],[N1,],[N2,]
+        indexes,idx_1,idx_2: np.array[N,],[N1,],[N2,]
         """
-        N = y.shape[0]
-        N1 = y1.shape[0]
-        N2 = y2.shape[0]
+        N = indexes.shape[0]
+        N1 = idx_1.shape[0]
+        N2 = idx_2.shape[0]
         assert N == (N1+N2),'shape not match'
 
-        return self.criterion(y) - (N1/N * self.criterion(y1) + N2/N * self.criterion(y2))
+        return self.criterion(self.y_tr[indexes]) - (N1/N * self.criterion(self.y_tr[idx_1]) + N2/N * self.criterion(self.y_tr[idx_2]))
 
-    def split_data(self,X,feature_idx,threshold):
+    def split_data(self,indexes,feature_idx,threshold):
         """
         split data into 2 parts based on X[,feature_idx] value compared to threshold
 
-        X: np.array[N,M]
+        indexes: np.array[N,], indexes of data that are splited to current subtree
 
         return:
             idx_1,idx_2 : np.array[N,]
             where dataset 1 is less than threshold and dataset 2 is greater than threshold
         """
-        idx_1, idx_2 = np.zeros([0,]).astype(np.int16),np.zeros([0,]).astype(np.int16)
-        for i in range(X.shape[0]):
-            if X[i,feature_idx] < threshold:
-                idx_1 = np.hstack((idx_1,np.array([i])))
+        idx_1, idx_2 = [],[]
+        for i in indexes:
+            if self.X_tr[i,feature_idx] < threshold:
+                idx_1.append(i)
             else:
-                idx_2 = np.hstack((idx_2,np.array([i])))
+                idx_2.append(i)
 
-        return idx_1, idx_2
+        return np.array(idx_1).astype(np.int16), np.array(idx_2).astype(np.int16)
 
 
 
-    def build_tree (self, depth,X,y):
+    def build_tree (self, depth,indexes):
         """
-        X: np.array[N,M]
-        y: np.array[N,]
+        depth : int , current depth of tree
+        indexes: indexes of data that are splited to current subtree
         """
-        assert X.ndim == 2, 'X:{}'.format(X.shape)
 
-        if (depth < self.max_depth) and (y.shape[0] > self.min_samples_leaf):
+        if (depth < self.max_depth) and (indexes.shape[0] > self.min_samples_leaf):
 
             largest_improvement = 0
-            feature_nums = X.shape[1]
+            feature_nums = self.feature_nums
             select_feature_idx,select_feature_value = -1,-1
             select_idx_1,select_idx_2 = None,None
 
             for feature_idx in range(feature_nums):
                 # print (X[:,feature_idx])
-                feature_values = set(X[:,feature_idx])
+                feature_values = np.unique(self.X_tr[indexes,feature_idx])
                 for feature_value in feature_values:
-                    idx_1,idx_2 = self.split_data(X,feature_idx,feature_value)
+                    idx_1,idx_2 = self.split_data(indexes,feature_idx,feature_value)
                     if idx_1.shape[0]>0 and idx_2.shape[0]>0:
-                        criterion_improvement = self.criterion_improve(y,y[idx_1],y[idx_2])
+                        criterion_improvement = self.criterion_improve(indexes,idx_1,idx_2)
                         if criterion_improvement > largest_improvement:
                             largest_improvement = criterion_improvement
                             select_feature_idx = feature_idx
@@ -136,23 +135,22 @@ class Tree(object):
 
             if largest_improvement > self.min_criterion_improve:
 
-                X1,X2 = X[select_idx_1], X[select_idx_2]
-                y1,y2 = y[select_idx_1], y[select_idx_2]
+
                 # print(X1.shape,select_idx_1)
                 # assert X1.ndim ==2, 'X:{},X1:{},select_idx_1: {}'.format(X.shape,X1.shape,select_idx_1)
                 # assert X2.ndim ==2, 'X2:{},select_idx_2: {}'.format(X2.shape,select_idx_2)
                 tree_node = Node(is_leaf=False,feature_idx=select_feature_idx,feature_threshold=select_feature_value)
-                tree_node.left = self.build_tree(depth+1,X1,y1)
-                tree_node.right = self.build_tree(depth+1,X2,y2)
+                tree_node.left = self.build_tree(depth+1,select_idx_1)
+                tree_node.right = self.build_tree(depth+1,select_idx_2)
                 return tree_node
 
             else:
                 # treat as tree leaf
-                return Node(is_leaf = True, value = self.calcluate_leaf_value(y))
+                return Node(is_leaf = True, value = self.calcluate_leaf_value(self.y_tr[indexes]))
 
 
         else:
-            return Node(is_leaf = True, value = self.calcluate_leaf_value(y))
+            return Node(is_leaf = True, value = self.calcluate_leaf_value(self.y_tr[indexes]))
 
     def pred_sample(self,x,node=None):
         """
@@ -199,4 +197,7 @@ class Tree(object):
 
     def fit(self,X,y):
         print ('fitting decision tree...')
-        self.root = self.build_tree(0,X,y)
+        self.X_tr, self.y_tr = X, y
+        self.feature_nums = self.X_tr.shape[1]
+        indexes = np.array(range(X.shape[0])).astype(np.int16)
+        self.root = self.build_tree(0,indexes)
