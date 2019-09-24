@@ -2,6 +2,11 @@ from decision_tree import Tree
 import numpy as np
 import math
 from tqdm import tqdm
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+import time
+
+
 
 class BionominalLoss(object):
     def __call__(self,y,F):
@@ -79,31 +84,43 @@ class GBDT(object):
         else:
             F = np.zeros([X.shape[0],])
             for tree in self.trees:
-                F += tree.predict(X)
+                F += self.learning_rate*tree.predict(X)
             # print (F)
             return F
 
 
-    def fit (self,X,y):
+    def fit (self,X,y,eval=False):
         """
         X: np.array [N,M]
         y: np.array [N,]
         """
+        if eval:
+            X_tr, X_val, y_tr, y_val = train_test_split( X, y, test_size=0.2, random_state=42)
+        else:
+            X_tr,y_tr = X,y
 
         for estimator_idx in tqdm(range(self.n_estimators)):
             print ('esitmator',estimator_idx)
             if estimator_idx == 0:
-                F = self.get_F(X,y)
+                F = self.get_F(X_tr,y_tr)
             else:
-                F = self.get_F(X)
+                F = self.get_F(X_tr)
             # print (F)
-            residual = self.loss.get_residual(y,F)
+            residual = self.loss.get_residual(y_tr,F)
             # assert y.shape[0] == residual.shape[0],'y shape {}, residual shape {}'.format(y.shape,residual.shape)
             tree = Tree(max_depth=self.max_depth,min_criterion_improve=self.min_criterion_improve,\
             min_samples_leaf = self.min_samples_leaf)
-            tree.fit(X,residual)
-            self.loss.update_terminal_region(tree,X,y,residual)
+            tree.fit(X_tr,residual)
+            self.loss.update_terminal_region(tree,X_tr,y_tr,residual)
             self.trees.append(tree)
+
+            if eval:
+                time_start = time.clock()
+                y_tr_pred = self.predict(X_tr)
+                y_pred = self.predict(X_val)
+                #run your code
+                time_elapsed = (time.clock() - time_start)
+                print ('current tr accu:{}, val accu: {},inference time consumption: {}'.format(accuracy_score(y_tr, y_tr_pred),accuracy_score(y_val, y_pred),time_elapsed))
 
     def predict(self,X):
         """
