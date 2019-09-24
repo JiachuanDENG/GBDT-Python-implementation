@@ -95,14 +95,11 @@ class Tree(object):
             idx_1,idx_2 : np.array[N,]
             where dataset 1 is less than threshold and dataset 2 is greater than threshold
         """
-        idx_1, idx_2 = [],[]
-        for i in indexes:
-            if self.X_tr[i,feature_idx] < threshold:
-                idx_1.append(i)
-            else:
-                idx_2.append(i)
 
-        return np.array(idx_1).astype(np.int16), np.array(idx_2).astype(np.int16)
+        idx_1 = indexes[self.X_tr[indexes,feature_idx]<threshold]
+        idx_2 = indexes[self.X_tr[indexes,feature_idx]>=threshold]
+
+        return idx_1,idx_2
 
 
 
@@ -146,10 +143,12 @@ class Tree(object):
 
             else:
                 # treat as tree leaf
+                print ('reach leaf node with depth :{}'.format(depth))
                 return Node(is_leaf = True, value = self.calcluate_leaf_value(self.y_tr[indexes]))
 
 
         else:
+            print ('reach leaf node with depth :{}'.format(depth))
             return Node(is_leaf = True, value = self.calcluate_leaf_value(self.y_tr[indexes]))
 
     def pred_sample(self,x,node=None):
