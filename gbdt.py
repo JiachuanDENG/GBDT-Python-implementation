@@ -28,6 +28,7 @@ class BionominalLoss(object):
     def update_terminal_region(self,tree,X,y,residual):
         """
         update tree node value based on one step newton method
+        https://stats.stackexchange.com/questions/330849/how-do-newton-raphson-updates-work-in-gradient-boosting
         """
 
         # build map between each node in tree with samples in X
